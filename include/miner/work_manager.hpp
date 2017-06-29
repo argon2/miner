@@ -111,6 +111,12 @@ namespace miner {
             void tick_getwork_poll(const boost::system::error_code & ec);
         
             /**
+             * The statistics timer handler.
+             * @param ec The boost::system::error_code.
+             */
+            void tick_statistics(const boost::system::error_code & ec);
+        
+            /**
              * The getwork_work.
              */
             std::shared_ptr<getwork_work> m_getwork_work;
@@ -169,6 +175,13 @@ namespace miner {
             boost::asio::basic_waitable_timer<
                 std::chrono::steady_clock
             > timer_getwork_poll_;
+        
+            /**
+             * The statistics timer timer.
+             */
+            boost::asio::basic_waitable_timer<
+                std::chrono::steady_clock
+            > timer_statistics_;
     };
     
 } // namespace miner

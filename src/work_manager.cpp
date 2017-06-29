@@ -48,6 +48,7 @@ work_manager::work_manager(stack_impl & owner)
     , work_host_index_(0)
     , getwork_current_block_(-1)
     , timer_getwork_poll_(owner.io_service())
+    , timer_statistics_(owner.io_service())
 {
     // ...
 }
@@ -137,6 +138,11 @@ void work_manager::start()
     {
         connect();
     }
+    
+    timer_statistics_.expires_from_now(std::chrono::seconds(60));
+    timer_statistics_.async_wait(std::bind(
+        &work_manager::tick_statistics, this, std::placeholders::_1)
+    );
 }
 
 void work_manager::stop()
@@ -144,6 +150,7 @@ void work_manager::stop()
     timer_.cancel();
     timer_check_work_hosts_.cancel();
     timer_getwork_poll_.cancel();
+    timer_statistics_.cancel();
     
     if (
         configuration::instance().work_host_type() ==
@@ -455,8 +462,8 @@ void work_manager::connect()
                         ++work_host_index_;
                         
                         log_info(
-                            "Work manager is switching to (backup) work host " <<
-                            work_host_index_ << "."
+                            "Work manager is switching to (backup) work "
+                            "host " << work_host_index_ << "."
                         );
                         
                         /**
@@ -495,6 +502,24 @@ void work_manager::connect()
                          * while the timer will probe the primary host until
                          * it is reachable and if so switch to it.
                          */
+                    }
+                    else
+                    {
+                        log_info(
+                            "Work manager (primary) (getwork) work host " <<
+                            work_host_index_ << " is down, will retry."
+                        );
+                        
+                        /**
+                         * Start the check work hosts timer.
+                         */
+                        timer_check_work_hosts_.expires_from_now(
+                            std::chrono::seconds(60)
+                        );
+                        timer_check_work_hosts_.async_wait(std::bind(
+                            &work_manager::tick_check_work_hosts, this,
+                            std::placeholders::_1)
+                        );
                     }
                 }
                 else
@@ -968,9 +993,66 @@ void work_manager::tick_getwork_poll(const boost::system::error_code & ec)
          */
         getwork_send_getblockcount();
         
-        timer_getwork_poll_.expires_from_now(std::chrono::seconds(8));
+        timer_getwork_poll_.expires_from_now(std::chrono::seconds(4));
         timer_getwork_poll_.async_wait(std::bind(
             &work_manager::tick_getwork_poll, this, std::placeholders::_1)
+        );
+    }
+}
+
+void work_manager::tick_statistics(const boost::system::error_code & ec)
+{
+    if (ec)
+    {
+        // ...
+    }
+    else
+    {
+        /**
+         * Update the statistics.
+         */
+        stack_impl_.update_statistics();
+        
+        std::uint32_t shares_accepted = 0;
+        std::uint32_t shares_rejected = 0;
+        
+        if (
+            configuration::instance().work_host_type() ==
+            configuration::work_host_type_getwork
+            )
+        {
+            shares_accepted = getwork::instance().shares_accepted();
+            shares_rejected = getwork::instance().shares_rejected();
+        }
+        else if (
+            configuration::instance().work_host_type() ==
+            configuration::work_host_type_stratum
+            )
+        {
+            shares_accepted = stratum::instance().shares_accepted();
+            shares_rejected = stratum::instance().shares_rejected();
+        }
+        
+        auto percentage = 0.0;
+        
+        if (shares_accepted + shares_rejected > 0)
+        {
+            percentage =
+                100.0f * shares_accepted / (shares_accepted + shares_rejected)
+            ;
+        }
+        
+        log_info(
+            "Statistics:\n " <<
+            "\tAccepted: " << shares_accepted << "(" << percentage << "%)\n" <<
+            "\tRejected: " << shares_accepted << "\n" <<
+            std::fixed << std::setprecision(2) <<
+            "\tHashrate: " << statistics::instance().hashes_per_second() << " H/s."
+        );
+        
+        timer_statistics_.expires_from_now(std::chrono::seconds(60));
+        timer_statistics_.async_wait(std::bind(
+            &work_manager::tick_statistics, this, std::placeholders::_1)
         );
     }
 }
