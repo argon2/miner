@@ -76,7 +76,7 @@ project stack
 	<conditional>@linking
 ;
 
-exe Miner++
+exe minerpp
     : # sources
     main.cpp ./..//miner /boost//system 
     : <link>static

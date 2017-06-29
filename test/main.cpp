@@ -1,9 +1,9 @@
 /*
- * Copyright (c) 2014-2017 BM-2cVZag8xxXdPC9BsLewmUotg6TBB8T2yTk
+ * Copyright (c) 2013-2015 John Connor (BM-NC49AxAjcqVcF5jNPu85Rb8MJ2d9JqZt)
  *
- * This file is part of Miner++.
+ * This file is part of MinerPP.
  *
- * Miner++ is free software: you can redistribute it and/or modify
+ * MinerPP is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License with
  * additional permissions to the one published by the Free Software
  * Foundation, either version 3 of the License, or (at your option)
@@ -62,12 +62,13 @@ int main(int argc, const char * argv[])
     if (args.size() == 0)
     {
         auto help =
-            "Copyright (c) 2017 The Argon Network"
+            "Copyright (c) 2015 John Connor"
             "\n\tUsage:"
-            "\n\t--work-hosts=http://user:pass@host1:port,http://user:pass@host2:port"
-            "\n\t--work-algorithm=argon2d"
+            "\n\t--work-hosts=stratum+tcp://user:pass@host1:port,stratum+tcp://user:pass@host2:port"
+            "\n\t--work-algorithm=whirlpoolxor"
             "\n\t--device-cores=0"
             "\n\t--device-type=cpu"
+            "\n\t--serial-ports=COM1,COM2,COM3,COM4\n"
         ;
     
         printf("%s\n", help);
