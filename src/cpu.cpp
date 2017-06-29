@@ -98,7 +98,7 @@ void cpu::stop()
 
 void cpu::set_work(const std::shared_ptr<getwork_work> & val)
 {
-    log_info("CPU " << this << " got new (getwork) work.");
+    log_debug("CPU " << this << " got new (getwork) work.");
 
     /**
      * If the work is null we need to restart.
@@ -146,7 +146,7 @@ void cpu::set_work(const std::shared_ptr<getwork_work> & val)
 
 void cpu::set_work(const std::shared_ptr<stratum_work> & val)
 {
-    log_info("CPU " << this << " got new (stratum) work.");
+    log_debug("CPU " << this << " got new (stratum) work.");
 
     /**
      * If the work is null we need to restart.
@@ -350,7 +350,7 @@ void cpu::loop()
                 
                 log_info(
                     "CPU " << std::this_thread::get_id() <<
-                    " is switching to new work."
+                    " is switching to new (getwork) work."
                 );
                 
                 has_new_work_ = false;
@@ -532,7 +532,7 @@ void cpu::loop()
                 
                 log_info(
                     "CPU " << std::this_thread::get_id() <<
-                    " is switching to new work."
+                    " is switching to new (stratum) work."
                 );
                 
                 has_new_work_ = false;
