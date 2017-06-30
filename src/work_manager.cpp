@@ -1045,9 +1045,10 @@ void work_manager::tick_statistics(const boost::system::error_code & ec)
         log_info(
             "Statistics:\n " <<
             "\tAccepted: " << shares_accepted << "(" << percentage << "%)\n" <<
-            "\tRejected: " << shares_accepted << "\n" <<
+            "\tRejected: " << shares_rejected << "\n" <<
             std::fixed << std::setprecision(2) <<
-            "\tHashrate: " << statistics::instance().hashes_per_second() << " H/s."
+            "\tHashrate: " << statistics::instance().hashes_per_second() <<
+            " H/s."
         );
         
         timer_statistics_.expires_from_now(std::chrono::seconds(60));
