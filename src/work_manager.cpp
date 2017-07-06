@@ -934,48 +934,95 @@ void work_manager::tick_check_work_hosts(const boost::system::error_code & ec)
              */
             tcp_stream.close();
             
-            /**
-             * Disconnect all backup work hosts.
-             */
-            for (auto & i : stratum_connections_)
+            if (
+                configuration::instance().work_host_type() ==
+                configuration::work_host_type_getwork
+                )
             {
-                if (auto j = i.lock())
-                {
-                    j->stop();
-                }
-            }
+                /**
+                 * Reset the work index.
+                 */
+                work_host_index_ = 0;
             
-            /**
-             * Reset the work index.
-             */
-            work_host_index_ = 0;
-        
-            log_info(
-                "Work manager is switching to (primary) work host " <<
-                work_host_index_ << "."
-            );
+                log_info(
+                    "Work manager is switching to (primary) work host " <<
+                    work_host_index_ << "."
+                );
 
-            stratum::instance().set_host(
-                configuration::instance().work_hosts()[
-                work_host_index_].second.first
-            );
-            stratum::instance().set_port(
-                configuration::instance().work_hosts()[
-                work_host_index_].second.second
-            );
-            stratum::instance().set_username(
-                configuration::instance().work_hosts()[
-                work_host_index_].first.first
-            );
-            stratum::instance().set_password(
-                configuration::instance().work_hosts()[
-                work_host_index_].first.second
-            );
-    
-            /**
-             * Connect to a work server.
-             */
-            connect();
+                getwork::instance().set_host(
+                    configuration::instance().work_hosts()[
+                    work_host_index_].second.first
+                );
+                getwork::instance().set_port(
+                    configuration::instance().work_hosts()[
+                    work_host_index_].second.second
+                );
+                getwork::instance().set_username(
+                    configuration::instance().work_hosts()[
+                    work_host_index_].first.first
+                );
+                getwork::instance().set_password(
+                    configuration::instance().work_hosts()[
+                    work_host_index_].first.second
+                );
+        
+                /**
+                 * Connect to a work server.
+                 */
+                connect();
+            }
+            else if (
+                configuration::instance().work_host_type() ==
+                configuration::work_host_type_stratum
+                )
+            {
+                /**
+                 * Disconnect all backup work hosts.
+                 */
+                for (auto & i : stratum_connections_)
+                {
+                    if (auto j = i.lock())
+                    {
+                        j->stop();
+                    }
+                }
+                
+                /**
+                 * Reset the work index.
+                 */
+                work_host_index_ = 0;
+            
+                log_info(
+                    "Work manager is switching to (primary) work host " <<
+                    work_host_index_ << "."
+                );
+
+                stratum::instance().set_host(
+                    configuration::instance().work_hosts()[
+                    work_host_index_].second.first
+                );
+                stratum::instance().set_port(
+                    configuration::instance().work_hosts()[
+                    work_host_index_].second.second
+                );
+                stratum::instance().set_username(
+                    configuration::instance().work_hosts()[
+                    work_host_index_].first.first
+                );
+                stratum::instance().set_password(
+                    configuration::instance().work_hosts()[
+                    work_host_index_].first.second
+                );
+        
+                /**
+                 * Connect to a work server.
+                 */
+                connect();
+            }
+            else
+            {
+                // ...
+            }
         }
     }
 }
