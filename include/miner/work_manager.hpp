@@ -22,7 +22,10 @@
 #define MINER_WORK_MANAGER_HPP
 
 #include <cstdint>
+#include <map>
 #include <vector>
+
+#include <boost/asio.hpp>
 
 namespace miner {
 
@@ -117,6 +120,23 @@ namespace miner {
             void tick_statistics(const boost::system::error_code & ec);
         
             /**
+             * UDP receive handler.
+             * @param ec The boost::system::error_code.
+             * @param len The length.
+             */
+            void handle_udp_multicast_receive_from(
+                const boost::system::error_code & ec, const size_t & len
+            );
+        
+            /**
+             * UDP sendto handler.
+             * @param ec The boost::system::error_code.
+             */
+            void handle_udp_multicast_send_to(
+                const boost::system::error_code & ec
+            );
+        
+            /**
              * The getwork_work.
              */
             std::shared_ptr<getwork_work> m_getwork_work;
@@ -182,6 +202,49 @@ namespace miner {
             boost::asio::basic_waitable_timer<
                 std::chrono::steady_clock
             > timer_statistics_;
+        
+            /**
+             * The local boost::asio::ip::udp::socket.
+             */
+            boost::asio::ip::udp::socket udp_socket_multicast_;
+        
+            /**
+             * The remote boost::asio::ip::udp::socket.
+             */
+            boost::asio::ip::udp::endpoint udp_endpoint_sender_;
+        
+            /**
+             * The maximum length of a multicast message.
+             */
+            enum { maximum_multicast_length = 1024 };
+        
+            /**
+             * The multicast data.
+             */
+            char multicast_data_[maximum_multicast_length];
+        
+            /**
+             * The multicast port.
+             */
+            enum { multicast_port = 9702 };
+        
+            /**
+             * The multicast identifier.
+             */
+            std::uint32_t multicast_id_;
+        
+            /**
+             * The multicast statistics.
+             */
+            std::map<
+                std::string,
+                std::pair<std::time_t, std::string>
+            > multicast_statistics_;
+        
+            /**
+             * The last time we have broadcast multicast statistics.
+             */
+            std::time_t time_last_multicast_send_;
     };
     
 } // namespace miner
