@@ -18,6 +18,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <ctime>
+
 #include <boost/algorithm/string.hpp>
 
 #include <miner/configuration.hpp>
@@ -45,6 +47,11 @@ stack_impl::stack_impl(miner::stack & owner)
 
 void stack_impl::start(const std::map<std::string, std::string> & args)
 {
+    /**
+     * Seed the RNG.
+     */
+    std::srand(std::time(0));
+    
     /**
      * Parse the command line arguments.
      */

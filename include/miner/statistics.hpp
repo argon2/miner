@@ -41,22 +41,38 @@ namespace miner {
             static statistics & instance();
         
             /**
-             * Sets the (combined) hashes per second.
+             * Sets the hashes per second.
              * @param val The value.
              */
             void set_hashes_per_second(const double & val);
         
             /**
-             * The (combined) hashes per second.
+             * The hashes per second.
              */
             const double & hashes_per_second() const;
+        
+            /**
+             * Sets the hashes per second (LAN).
+             * @param val The value.
+             */
+            void set_hashes_per_second_lan(const double & val);
+        
+            /**
+             * The hashes per second (LAN).
+             */
+            const double & hashes_per_second_lan() const;
         
         private:
         
             /**
-             * The (combined) hashes per second.
+             * The hashes per second.
              */
             double m_hashes_per_second;
+        
+            /**
+             * The hashes per second (LAN).
+             */
+            double m_hashes_per_second_lan;
         
         protected:
       

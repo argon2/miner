@@ -21,6 +21,7 @@
 #include <cassert>
 #include <sstream>
 
+#include <boost/algorithm/string.hpp>
 #include <boost/asio.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
@@ -49,6 +50,9 @@ work_manager::work_manager(stack_impl & owner)
     , getwork_current_block_(-1)
     , timer_getwork_poll_(owner.io_service())
     , timer_statistics_(owner.io_service())
+    , udp_socket_multicast_(owner.io_service())
+    , multicast_id_(std::rand())
+    , time_last_multicast_send_(0)
 {
     // ...
 }
@@ -143,6 +147,46 @@ void work_manager::start()
     timer_statistics_.async_wait(std::bind(
         &work_manager::tick_statistics, this, std::placeholders::_1)
     );
+    
+    if (
+        configuration::instance().work_host_type() ==
+        configuration::work_host_type_getwork
+        )
+    {
+        auto listen_address = boost::asio::ip::address_v4::any();
+        
+        auto multicast_address =
+            boost::asio::ip::address::from_string("239.255.0.1")
+        ;
+        
+        boost::asio::ip::udp::endpoint
+            listen_endpoint(listen_address, multicast_port)
+        ;
+        
+        boost::asio::ip::udp::endpoint multicast_endpoint(
+            multicast_address, multicast_port
+        );
+        
+        udp_socket_multicast_.open(listen_endpoint.protocol());
+        udp_socket_multicast_.set_option(
+            boost::asio::ip::udp::socket::reuse_address(true)
+        );
+        udp_socket_multicast_.bind(listen_endpoint);
+
+        udp_socket_multicast_.set_option(
+            boost::asio::ip::multicast::join_group(multicast_address)
+        );
+
+        auto self(shared_from_this());
+        
+        udp_socket_multicast_.async_receive_from(
+            boost::asio::buffer(multicast_data_, maximum_multicast_length),
+            udp_endpoint_sender_,
+            strand_.wrap(std::bind(
+            &work_manager::handle_udp_multicast_receive_from, self,
+            std::placeholders::_1, std::placeholders::_2))
+        );
+    }
 }
 
 void work_manager::stop()
@@ -151,6 +195,14 @@ void work_manager::stop()
     timer_check_work_hosts_.cancel();
     timer_getwork_poll_.cancel();
     timer_statistics_.cancel();
+    
+    if (
+        configuration::instance().work_host_type() ==
+        configuration::work_host_type_getwork
+        )
+    {
+        udp_socket_multicast_.close();
+    }
     
     if (
         configuration::instance().work_host_type() ==
@@ -383,7 +435,7 @@ void work_manager::connect()
         configuration::work_host_type_getwork
         )
     {
-        log_info("Work manager is connecting (getwork).");
+        log_debug("Work manager is connecting (getwork).");
         
         /**
          * The JSON (getwork) request.
@@ -1090,17 +1142,141 @@ void work_manager::tick_statistics(const boost::system::error_code & ec)
         }
         
         log_info(
-            "Statistics:\n " <<
+            "\nStatistics:\n " <<
             "\tAccepted: " << shares_accepted << "(" << percentage << "%)\n" <<
             "\tRejected: " << shares_rejected << "\n" <<
             std::fixed << std::setprecision(2) <<
             "\tHashrate: " << statistics::instance().hashes_per_second() <<
-            " H/s."
+            " H/s\n"
+            "\tHashrate (LAN): " <<
+            statistics::instance().hashes_per_second_lan() << " H/s" << "\n" <<
+            "\tWorkers (LAN): " << multicast_statistics_.size()
         );
         
+        auto self(shared_from_this());
+        
+        if (
+            configuration::instance().work_host_type() ==
+            configuration::work_host_type_getwork
+            )
+        {
+            /**
+             * Limit broadcasting of statistics to every 180 seconds.
+             */
+            if (std::time(0) - time_last_multicast_send_ > 180)
+            {
+                log_info("Work manager is sending multicast statistics.");
+                
+                std::string request_multicast =
+                    "workerinfo," +
+                    std::to_string(multicast_id_) + "," +
+                    std::to_string(shares_accepted) + "," +
+                    std::to_string(shares_rejected) + "," +
+                    std::to_string(statistics::instance().hashes_per_second())
+                ;
+            
+                auto multicast_address =
+                    boost::asio::ip::address::from_string("239.255.0.1")
+                ;
+                
+                boost::asio::ip::udp::endpoint multicast_endpoint(
+                    multicast_address, multicast_port
+                );
+            
+                udp_socket_multicast_.async_send_to(
+                    boost::asio::buffer(request_multicast), multicast_endpoint,
+                    strand_.wrap(std::bind(
+                    &work_manager::handle_udp_multicast_send_to, self,
+                    std::placeholders::_1))
+                );
+            }
+        }
+        
         timer_statistics_.expires_from_now(std::chrono::seconds(60));
-        timer_statistics_.async_wait(std::bind(
-            &work_manager::tick_statistics, this, std::placeholders::_1)
+        timer_statistics_.async_wait(strand_.wrap(std::bind(
+            &work_manager::tick_statistics, self, std::placeholders::_1))
         );
+    }
+}
+
+void work_manager::handle_udp_multicast_receive_from(
+    const boost::system::error_code & ec, const size_t & len
+    )
+{
+    if (ec)
+    {
+        // ..
+    }
+    else
+    {
+        std::string data(multicast_data_, multicast_data_ + len);
+    
+        multicast_statistics_[udp_endpoint_sender_.address().to_string()] =
+            std::make_pair(std::time(0), data
+        );
+        
+        log_debug(
+            "Work manager got UDP multicast = " << data << " from " <<
+            udp_endpoint_sender_ << "."
+        );
+        
+        double hashrate_workers = 0.0;
+        
+        auto it = multicast_statistics_.begin();
+        
+        while (it != multicast_statistics_.end())
+        {
+            /**
+             * If a worker has not broadcast statistics in ten minutes then
+             * erase it.
+             */
+            if (std::time(0) - it->second.first > 600)
+            {
+                it = multicast_statistics_.erase(it);
+            }
+            else
+            {
+                std::vector<std::string> parts;
+        
+                boost::split(parts, it->second.second, boost::is_any_of(","));
+        
+                hashrate_workers += std::stod(parts[4]);
+                
+                ++it;
+            }
+        }
+        
+        statistics::instance().set_hashes_per_second_lan(
+            hashrate_workers
+        );
+        
+        log_debug(
+            "Work manager total workers = " <<
+            multicast_statistics_.size() << "."
+        );
+    
+        auto self(shared_from_this());
+    
+        udp_socket_multicast_.async_receive_from(
+            boost::asio::buffer(multicast_data_, maximum_multicast_length),
+            udp_endpoint_sender_,
+            strand_.wrap(std::bind(
+            &work_manager::handle_udp_multicast_receive_from, self,
+            std::placeholders::_1, std::placeholders::_2))
+        );
+    }
+}
+
+void work_manager::handle_udp_multicast_send_to(
+    const boost::system::error_code & ec
+    )
+{
+    if (ec)
+    {
+        // ...
+    }
+    else
+    {
+        time_last_multicast_send_ = std::time(0);
     }
 }
