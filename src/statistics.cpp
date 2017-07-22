@@ -24,6 +24,7 @@ using namespace miner;
 
 statistics::statistics()
     : m_hashes_per_second(0.0)
+    , m_hashes_per_second_lan(0.0)
 {
     // ...
 }
@@ -43,4 +44,14 @@ void statistics::set_hashes_per_second(const double & val)
 const double & statistics::hashes_per_second() const
 {
     return m_hashes_per_second;
+}
+
+void statistics::set_hashes_per_second_lan(const double & val)
+{
+    m_hashes_per_second_lan = val;
+}
+
+const double & statistics::hashes_per_second_lan() const
+{
+    return m_hashes_per_second_lan;
 }
